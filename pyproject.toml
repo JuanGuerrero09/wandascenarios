@@ -1,0 +1,11 @@
+[project]
+name = "wandascenarios"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyside6>=6.8.2.1",
+    "pywanda==4.7.0a2",
+    "wandalib>=0.1.1",
+]
