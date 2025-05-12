@@ -55,6 +55,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Wanda Scenarios Manager")
         self.setGeometry(100, 100, 800, 600)  # Set the window size
         self.setMinimumSize(QSize(800, 600))  # Set a minimum size
+        
+        self.wanda_bin = wanda_bin
+        self.wanda_file = wanda_file
+        
+        self.wanda_model = None
+        self.components = None
+        
+        self.cases = {}
         # Main layout
         main_layout = QVBoxLayout()
         
@@ -86,9 +94,9 @@ class MainWindow(QMainWindow):
         data_layout.setSpacing(5)
         
         labels = [
-        ("Wanda Bin Path: /path/to/bin", 14),
-        ("Wanda File Path: /path/to/file", None),
-        ("Wanda Model: ModelName", None),
+        (f"Wanda Bin Path: {self.wanda_bin}", 10),
+        # (f"Wanda File Path: {self.wanda_file}", None),
+        # ("Wanda Model: ModelName", None),
         ]
 
         for text, font_size in labels:
@@ -98,11 +106,6 @@ class MainWindow(QMainWindow):
             label.setWordWrap(True)
             data_layout.addWidget(label)
 
-        TransientOptions = QComboBox()
-        TransientOptions.addItems(["Valve Closing", "Pump Trip"])
-        TransientOptions.currentIndexChanged.connect(self.index_changed)
-        TransientOptions.currentTextChanged.connect(self.text_changed)
-        data_layout.addWidget(TransientOptions)
 
         data_group = QGroupBox("Model Information")
         data_group.setLayout(data_layout)
@@ -110,21 +113,16 @@ class MainWindow(QMainWindow):
     
     def create_widgets_section(self):
         """Crea la sección de widgets estáticos."""
-        widgets = [QCheckBox, QLineEdit]
         widgets_layout = QVBoxLayout()
         file_path_label = QLabel("No file selected")
         file_path_label.setWordWrap(True)
         widgets_layout.addWidget(file_path_label)
         self.file_path_label = file_path_label  # Store the label reference for later use
         
-        
         # Button to open the file dialog
         file_button = QPushButton("Select File")
         file_button.clicked.connect(self.open_file_dialog)
         widgets_layout.addWidget(file_button)
-
-        for widget in widgets:
-            widgets_layout.addWidget(widget())
 
         widgets_group = QGroupBox("Widgets")
         widgets_group.setLayout(widgets_layout)
@@ -143,7 +141,7 @@ class MainWindow(QMainWindow):
         scroll_area.setWidgetResizable(True)
         scroll_area.setFixedHeight(200)
 
-        dynamic_group = QGroupBox("Dynamic Widgets")
+        dynamic_group = QGroupBox("Transient Scenarios")
         dynamic_group_layout = QVBoxLayout()
         dynamic_group_layout.addWidget(scroll_area)
         dynamic_group.setLayout(dynamic_group_layout)
@@ -151,23 +149,30 @@ class MainWindow(QMainWindow):
 
     def create_buttons_section(self):
         """Crea los botones para agregar widgets dinámicos."""
-        buttons_layout = QVBoxLayout()
 
         # add_label_button = QPushButton("Add Label")
         # add_label_button.clicked.connect(self.open_file_dialog)
         # buttons_layout.addWidget(add_label_button)
         
         # Botón para agregar escenarios
-        add_scenario_button = QPushButton("Add Scenario")
-        add_scenario_button.clicked.connect(self.add_scenario)
-        buttons_layout.addWidget(add_scenario_button)
-
-        add_combobox_button = QPushButton("Add ComboBox")
-        add_combobox_button.clicked.connect(self.add_combobox)
-        buttons_layout.addWidget(add_combobox_button)
+        self.add_scenario_trip_button = QPushButton("Add Trip Scenario")
+        self.add_scenario_trip_button.setEnabled(False)  # Initially disabled
+        self.add_scenario_trip_button.clicked.connect(self.add_scenario)
+        
+        self.add_scenario_closure_button = QPushButton("Add Closure Scenario")
+        self.add_scenario_closure_button.setEnabled(False)  # Initially disabled
+        self.add_scenario_closure_button.clicked.connect(self.add_scenario)
+        
+        
+        
+        self.scenario_layout = QHBoxLayout()
+        self.scenario_layout.addWidget(self.add_scenario_trip_button)
+        self.scenario_layout.addWidget(self.add_scenario_closure_button)
+        self.scenario_layout.addStretch()  # Add stretchable space to the right
+        
 
         buttons_widget = QWidget()
-        buttons_widget.setLayout(buttons_layout)
+        buttons_widget.setLayout(self.scenario_layout)
         return buttons_widget
     
     def open_file_dialog(self):
@@ -175,15 +180,15 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select a File", "", "All Files (*.*);;Text Files (*.txt)")
         if file_path:
             self.file_path_label.setText(file_path)  # Display the selected file path
+            self.wanda_file = file_path  # Update the wanda_file with the selected file path
+            self.wanda_model = pywanda.WandaModel(self.wanda_file, self.wanda_bin)
+            self.add_scenario_button.setEnabled(True)  # Enable the button after loading the model
+            self.components = self.get_current_components()
             
     def add_label(self):
         new_label = QLabel("New Label")
         self.dynamic_layout.addWidget(new_label)
 
-    def add_combobox(self):
-        new_combobox = QComboBox()
-        new_combobox.addItems(TRANSIENT_OPTIONS)
-        self.dynamic_layout.addWidget(new_combobox)
         
     def add_scenario(self):
         # Obtener el número dinámico basado en la cantidad de elementos ya creados
@@ -195,11 +200,24 @@ class MainWindow(QMainWindow):
         # Crear un QComboBox con las opciones
         scenario_combobox = QComboBox()
         scenario_combobox.addItems(TRANSIENT_OPTIONS)
+                
+        # Crear combobox para cada tipo de componente
+        type = scenario_combobox.currentText()
+        if type == "Valve Closing":
+            componentType = "VALVE"
+        elif type == "Pump Trip":
+            componentType = "PUMP"
+        components = self.get_components_from_type(self.components, componentType)
+        component_combobox = QComboBox()
+        print(components)
+        component_combobox.addItems(["Hola"])
+        
 
         # Crear un layout horizontal para colocar el label y el combobox en la misma línea
         scenario_layout = QHBoxLayout()
         scenario_layout.addWidget(scenario_label)
         scenario_layout.addWidget(scenario_combobox)
+        scenario_layout.addWidget(component_combobox)
 
         # Crear un contenedor para el layout horizontal
         scenario_widget = QWidget()
@@ -208,7 +226,25 @@ class MainWindow(QMainWindow):
         # Agregar el contenedor al layout dinámico
         self.dynamic_layout.addWidget(scenario_widget)
         
+    def get_current_components(self):
+        current_components = self.wanda_model.get_all_components_str()
+        components = {}
+        for component in current_components:
+            component_splited = component.split(" ", 1)
+            type_ = component_splited[0]  # Avoid using 'type' as it's a built-in function
+            name = component_splited[1]
+
+            # Initialize the list if the key does not exist
+            if type_ not in components:
+                components[type_] = []
+
+            components[type_].append(name)
+        return components
     
+    def get_components_from_type(self, all_components, type):
+        print(type)
+        print(all_components)
+        # return all_components[type]
 
 
 app = QApplication([])
